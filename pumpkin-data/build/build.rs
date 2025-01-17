@@ -6,6 +6,7 @@ use proc_macro2::{Span, TokenStream};
 use syn::Ident;
 
 mod biome;
+mod block;
 mod chunk_status;
 mod entity_pose;
 mod entity_type;
@@ -33,6 +34,7 @@ pub fn main() {
     write_generated_file(entity_type::build(), "entity_type.rs");
     write_generated_file(noise_parmeter::build(), "noise_parmeter.rs");
     write_generated_file(biome::build(), "biome.rs");
+    write_generated_file(block::build(), "block.rs");
 }
 
 pub fn array_to_tokenstream(array: Vec<String>) -> TokenStream {

@@ -88,12 +88,11 @@ pub struct VeinType {
 
 // One of the victims of removing compile time blocks
 pub mod vein_type {
-    use pumpkin_macros::block_state;
-
     use super::*;
+    use pumpkin_data::world::Block;
 
     pub const COPPER: VeinType = VeinType {
-        ore: block_state!("copper_ore"),
+        ore: Block::CopperOre,
         raw_ore: block_state!("raw_copper_block"),
         stone: block_state!("granite"),
         min_y: 0,

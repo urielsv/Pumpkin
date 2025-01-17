@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::ident;
 
 #[derive(Deserialize)]
-pub struct DoublePerlinNoiseParameters {
+struct DoublePerlinNoiseParameters {
     first_octave: i32,
     amplitudes: Vec<f64>,
 }

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::ident;
 
 #[derive(Deserialize)]
-pub struct JSONStruct {
+struct JSONStruct {
     id: u16,
 }
 
@@ -17,7 +17,7 @@ pub(crate) fn build() -> TokenStream {
 
     let json: HashMap<String, JSONStruct> =
         serde_json::from_str(include_str!("../../assets/entities.json"))
-            .expect("Failed to parse sound_category.json");
+            .expect("Failed to parse entities.json");
     let mut variants = TokenStream::new();
 
     for (item, id) in json.iter() {
@@ -30,9 +30,9 @@ pub(crate) fn build() -> TokenStream {
 
     let type_from_raw_id_arms = json
         .iter()
-        .map(|sound| {
-            let id = &sound.1.id;
-            let name = ident(sound.0.to_pascal_case());
+        .map(|e| {
+            let id = &e.1.id;
+            let name = ident(e.0.to_pascal_case());
 
             quote! {
                 #id => Some(Self::#name),

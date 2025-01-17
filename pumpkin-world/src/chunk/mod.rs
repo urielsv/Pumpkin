@@ -237,7 +237,7 @@ impl Subchunks {
     }
 
     /// Sets the given block in the chunk, returning the old block
-    pub fn set_block(&mut self, position: ChunkRelativeBlockCoordinates, block_id: u16) {
+    pub fn set_block(&mut self, position: ChunkRelativeBlockCoordinates, block: u16) {
         // TODO @LUK_ESC? update the heightmap
         self.set_block_no_heightmap_update(position, block_id)
     }
