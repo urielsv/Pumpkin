@@ -238,7 +238,20 @@ impl CommandDispatcher {
             ));
         };
 
+        // Check base permission level first
         if !src.has_permission_lvl(*permission) {
+            return Err(PermissionDenied);
+        }
+
+        // Get plugin name for permission checks
+        let plugin_name = match self.plugin_names.get(key) {
+            Some(name) => name,
+            None => "",
+        };
+        
+        // Check plugin-specific permission
+        let plugin_permission = format!("{}.{}", plugin_name, key);
+        if !src.has_permission(&plugin_permission) {
             return Err(PermissionDenied);
         }
 
@@ -246,7 +259,7 @@ impl CommandDispatcher {
 
         // try paths until fitting path is found
         for path in tree.iter_paths() {
-            if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), &self.plugin_names.get(key).unwrap_or(&"".to_string())).await? {
+            if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
                 return Ok(());
             }
         }
