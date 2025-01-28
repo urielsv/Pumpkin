@@ -62,12 +62,13 @@ pub trait NodeBuilder {
 
 struct LeafNodeBuilder {
     node_type: NodeType,
+    requires_permission: bool,
 }
 
 impl NodeBuilder for LeafNodeBuilder {
     fn build(self, _tree: &mut CommandTree) -> Node {
         Node {
-            requires_permission: false,
+            requires_permission: self.requires_permission,
             children: Vec::new(),
             node_type: self.node_type,
         }
@@ -78,6 +79,7 @@ pub struct NonLeafNodeBuilder {
     node_type: NodeType,
     child_nodes: Vec<NonLeafNodeBuilder>,
     leaf_nodes: Vec<LeafNodeBuilder>,
+    requires_permission: bool,
 }
 
 impl NodeBuilder for NonLeafNodeBuilder {
@@ -97,7 +99,7 @@ impl NodeBuilder for NonLeafNodeBuilder {
         }
 
         Node {
-            requires_permission: false,
+            requires_permission: self.requires_permission,
             children: child_indices,
             node_type: self.node_type,
         }
@@ -109,6 +111,17 @@ impl NonLeafNodeBuilder {
     #[must_use]
     pub fn then(mut self, child: Self) -> Self {
         self.child_nodes.push(child);
+        self
+    }
+
+    /// Mark this node as requiring permission check
+    #[must_use]
+    pub fn requires_permission(mut self) -> Self {
+        self.requires_permission = true;
+        // Also set requires_permission for all leaf nodes
+        self.leaf_nodes.iter_mut().for_each(|leaf| {
+            leaf.requires_permission = true;
+        });
         self
     }
 
@@ -125,6 +138,7 @@ impl NonLeafNodeBuilder {
             node_type: NodeType::ExecuteLeaf {
                 executor: Arc::new(executor),
             },
+            requires_permission: self.requires_permission,
         });
 
         self
@@ -140,6 +154,7 @@ pub fn literal(string: impl Into<String>) -> NonLeafNodeBuilder {
         },
         child_nodes: Vec::new(),
         leaf_nodes: Vec::new(),
+        requires_permission: false,
     }
 }
 
@@ -162,6 +177,7 @@ pub fn argument(
         },
         child_nodes: Vec::new(),
         leaf_nodes: Vec::new(),
+        requires_permission: false,
     }
 }
 
@@ -176,6 +192,7 @@ pub fn argument_default_name(
         },
         child_nodes: Vec::new(),
         leaf_nodes: Vec::new(),
+        requires_permission: false,
     }
 }
 
@@ -190,5 +207,6 @@ pub fn require(
         },
         child_nodes: Vec::new(),
         leaf_nodes: Vec::new(),
+        requires_permission: false,
     }
 }

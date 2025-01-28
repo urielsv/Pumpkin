@@ -51,7 +51,7 @@ impl Context {
         permission: PermissionLvl,
     ) {
         let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-        dispatcher_lock.register(tree, permission);
+        dispatcher_lock.register_with_plugin(tree, permission, &self.metadata.name);
     }
 
     pub async fn register_event<E: Event + 'static, H>(

@@ -56,16 +56,14 @@ impl CommandSender<'_> {
         }
     }
 
-    #[must_use]
     pub const fn is_player(&self) -> bool {
         matches!(self, CommandSender::Player(_))
     }
 
-    #[must_use]
     pub const fn is_console(&self) -> bool {
         matches!(self, CommandSender::Console)
     }
-    #[must_use]
+
     pub fn as_player(&self) -> Option<Arc<Player>> {
         match self {
             CommandSender::Player(player) => Some(player.clone()),
@@ -73,8 +71,6 @@ impl CommandSender<'_> {
         }
     }
 
-    /// prefer using `has_permission_lvl(lvl)`
-    #[must_use]
     pub fn permission_lvl(&self) -> PermissionLvl {
         match self {
             CommandSender::Console | CommandSender::Rcon(_) => PermissionLvl::Four,
@@ -82,7 +78,6 @@ impl CommandSender<'_> {
         }
     }
 
-    #[must_use]
     pub fn has_permission_lvl(&self, lvl: PermissionLvl) -> bool {
         match self {
             CommandSender::Console | CommandSender::Rcon(_) => true,
@@ -90,7 +85,20 @@ impl CommandSender<'_> {
         }
     }
 
-    #[must_use]
+    pub fn has_permission(&self, permission: &str) -> bool {
+        match self {
+            CommandSender::Console => true, // Console always has permission
+            CommandSender::Rcon(_) => true, // RCON always has permission
+            CommandSender::Player(player) => {
+                if let Some(checker) = crate::plugin::api::permissions::get_permission_checker() {
+                    checker.check_permission(&player.gameprofile.id, permission)
+                } else {
+                    true // No permission checker means all permissions are granted
+                }
+            }
+        }
+    }
+
     pub fn position(&self) -> Option<Vector3<f64>> {
         match self {
             CommandSender::Console | CommandSender::Rcon(..) => None,
@@ -98,7 +106,6 @@ impl CommandSender<'_> {
         }
     }
 
-    #[must_use]
     pub fn world(&self) -> Option<&World> {
         match self {
             // TODO: maybe return first world when console
@@ -110,8 +117,9 @@ impl CommandSender<'_> {
 
 #[must_use]
 pub fn default_dispatcher() -> CommandDispatcher {
-    let mut dispatcher = CommandDispatcher::default();
+    let mut dispatcher = CommandDispatcher::new();
 
+    // Register all core commands (using two-argument version)
     dispatcher.register(pumpkin::init_command_tree(), PermissionLvl::Zero);
     dispatcher.register(bossbar::init_command_tree(), PermissionLvl::Two);
     dispatcher.register(say::init_command_tree(), PermissionLvl::Two);
@@ -126,23 +134,23 @@ pub fn default_dispatcher() -> CommandDispatcher {
     dispatcher.register(teleport::init_command_tree(), PermissionLvl::Two);
     dispatcher.register(time::init_command_tree(), PermissionLvl::Two);
     dispatcher.register(give::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(list::init_command_tree(), PermissionLvl::Zero);
-    dispatcher.register(clear::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(setblock::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(seed::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(transfer::init_command_tree(), PermissionLvl::Zero);
-    dispatcher.register(fill::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(op::init_command_tree(), PermissionLvl::Three);
-    dispatcher.register(deop::init_command_tree(), PermissionLvl::Three);
-    dispatcher.register(me::init_command_tree(), PermissionLvl::Zero);
-    dispatcher.register(playsound::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(title::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(summon::init_command_tree(), PermissionLvl::Two);
-    dispatcher.register(msg::init_command_tree(), PermissionLvl::Zero);
-    dispatcher.register(ban::init_command_tree(), PermissionLvl::Three);
-    dispatcher.register(banip::init_command_tree(), PermissionLvl::Three);
-    dispatcher.register(banlist::init_command_tree(), PermissionLvl::Three);
-    dispatcher.register(pardon::init_command_tree(), PermissionLvl::Three);
+    dispatcher.register(list::init_command_tree(), PermissionLvl::Zero);      
+    dispatcher.register(clear::init_command_tree(), PermissionLvl::Two);      
+    dispatcher.register(setblock::init_command_tree(), PermissionLvl::Two);   
+    dispatcher.register(seed::init_command_tree(), PermissionLvl::Two);       
+    dispatcher.register(transfer::init_command_tree(), PermissionLvl::Zero);  
+    dispatcher.register(fill::init_command_tree(), PermissionLvl::Two);       
+    dispatcher.register(op::init_command_tree(), PermissionLvl::Three);       
+    dispatcher.register(deop::init_command_tree(), PermissionLvl::Three);     
+    dispatcher.register(me::init_command_tree(), PermissionLvl::Zero);        
+    dispatcher.register(playsound::init_command_tree(), PermissionLvl::Two);  
+    dispatcher.register(title::init_command_tree(), PermissionLvl::Two);      
+    dispatcher.register(summon::init_command_tree(), PermissionLvl::Two);     
+    dispatcher.register(msg::init_command_tree(), PermissionLvl::Zero);       
+    dispatcher.register(ban::init_command_tree(), PermissionLvl::Three);      
+    dispatcher.register(banip::init_command_tree(), PermissionLvl::Three);    
+    dispatcher.register(banlist::init_command_tree(), PermissionLvl::Three);  
+    dispatcher.register(pardon::init_command_tree(), PermissionLvl::Three);   
     dispatcher.register(pardonip::init_command_tree(), PermissionLvl::Three);
 
     dispatcher

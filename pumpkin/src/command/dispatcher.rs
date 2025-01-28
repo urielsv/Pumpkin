@@ -11,7 +11,6 @@ use crate::command::tree::{Command, CommandTree, NodeType, RawArgs};
 use crate::command::CommandSender;
 use crate::error::PumpkinError;
 use crate::server::Server;
-use pumpkin_util::text::color::{Color, NamedColor};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
@@ -52,14 +51,33 @@ impl CommandError {
     }
 }
 
-#[derive(Default)]
 pub struct CommandDispatcher {
     pub(crate) commands: HashMap<String, Command>,
     pub(crate) permissions: HashMap<String, PermissionLvl>,
+    pub(crate) plugin_names: HashMap<String, String>,
 }
 
-/// Stores registered [`CommandTree`]s and dispatches commands to them.
 impl CommandDispatcher {
+    pub fn new() -> Self {
+        Self {
+            commands: HashMap::new(),
+            permissions: HashMap::new(),
+            plugin_names: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn register(&mut self, tree: CommandTree, permission: PermissionLvl) {
+        self.register_with_plugin(tree, permission, "pumpkin");
+    }
+
+    pub(crate) fn register_with_plugin(&mut self, tree: CommandTree, permission: PermissionLvl, plugin_name: &str) {
+        for name in &tree.names {
+            self.commands.insert(name.clone(), Command::Tree(tree.clone()));
+            self.permissions.insert(name.clone(), permission);
+            self.plugin_names.insert(name.clone(), plugin_name.to_string());
+        }
+    }
+
     pub async fn handle_command<'a>(
         &'a self,
         sender: &mut CommandSender<'a>,
@@ -78,10 +96,61 @@ impl CommandDispatcher {
                 }
                 Err(pumpkin_error) => {
                     pumpkin_error.log();
-                    sender.send_message(TextComponent::text("Unknown internal error occurred while running command. Please see server log").color(Color::Named(NamedColor::Red))).await;
+                    sender.send_message(TextComponent::text("Unknown internal error occurred while running command. Please see server log").color_named(pumpkin_util::text::color::NamedColor::Red)).await;
                 }
             }
         }
+    }
+
+    async fn try_is_fitting_path<'a>(
+        src: &mut CommandSender<'a>,
+        server: &'a Server,
+        path: &[usize],
+        tree: &'a CommandTree,
+        raw_args: &mut RawArgs<'a>,
+        plugin_name: &str,
+    ) -> Result<bool, CommandError> {
+        let mut parsed_args: ConsumedArgs = HashMap::new();
+
+        // Check node permissions before executing
+        if let Some(required_permission) = tree.get_required_permission(path, plugin_name) {
+            if !src.has_permission(&required_permission) {
+                return Err(PermissionDenied);
+            }
+        }
+
+        for node in path.iter().map(|&i| &tree.nodes[i]) {
+            match &node.node_type {
+                NodeType::ExecuteLeaf { executor } => {
+                    return if raw_args.is_empty() {
+                        executor.execute(src, server, &parsed_args).await?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    };
+                }
+                NodeType::Literal { string, .. } => {
+                    if raw_args.pop() != Some(string) {
+                        return Ok(false);
+                    }
+                }
+                NodeType::Argument { consumer, name, .. } => {
+                    match consumer.consume(src, server, raw_args).await {
+                        Some(consumed) => {
+                            parsed_args.insert(name, consumed);
+                        }
+                        None => return Ok(false),
+                    }
+                }
+                NodeType::Require { predicate, .. } => {
+                    if !predicate(src) {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+
+        Ok(false)
     }
 
     /// server side suggestions (client side suggestions work independently)
@@ -177,7 +246,7 @@ impl CommandDispatcher {
 
         // try paths until fitting path is found
         for path in tree.iter_paths() {
-            if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone()).await? {
+            if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), &self.plugin_names.get(key).unwrap_or(&"".to_string())).await? {
                 return Ok(());
             }
         }
@@ -208,49 +277,6 @@ impl CommandDispatcher {
 
     pub(crate) fn get_permission_lvl(&self, key: &str) -> Option<PermissionLvl> {
         self.permissions.get(key).copied()
-    }
-
-    async fn try_is_fitting_path<'a>(
-        src: &mut CommandSender<'a>,
-        server: &'a Server,
-        path: &[usize],
-        tree: &'a CommandTree,
-        raw_args: &mut RawArgs<'a>,
-    ) -> Result<bool, CommandError> {
-        let mut parsed_args: ConsumedArgs = HashMap::new();
-
-        for node in path.iter().map(|&i| &tree.nodes[i]) {
-            match &node.node_type {
-                NodeType::ExecuteLeaf { executor } => {
-                    return if raw_args.is_empty() {
-                        executor.execute(src, server, &parsed_args).await?;
-                        Ok(true)
-                    } else {
-                        Ok(false)
-                    };
-                }
-                NodeType::Literal { string, .. } => {
-                    if raw_args.pop() != Some(string) {
-                        return Ok(false);
-                    }
-                }
-                NodeType::Argument { consumer, name, .. } => {
-                    match consumer.consume(src, server, raw_args).await {
-                        Some(consumed) => {
-                            parsed_args.insert(name, consumed);
-                        }
-                        None => return Ok(false),
-                    }
-                }
-                NodeType::Require { predicate, .. } => {
-                    if !predicate(src) {
-                        return Ok(false);
-                    }
-                }
-            }
-        }
-
-        Ok(false)
     }
 
     async fn try_find_suggestions_on_path<'a>(
@@ -297,24 +323,6 @@ impl CommandDispatcher {
         }
 
         Ok(None)
-    }
-
-    /// Register a command with the dispatcher.
-    pub(crate) fn register(&mut self, tree: CommandTree, permission: PermissionLvl) {
-        let mut names = tree.names.iter();
-
-        let primary_name = names.next().expect("at least one name must be provided");
-
-        for name in names {
-            self.commands
-                .insert(name.to_string(), Command::Alias(primary_name.to_string()));
-            self.permissions.insert(name.to_string(), permission);
-        }
-
-        self.permissions
-            .insert(primary_name.to_string(), permission);
-        self.commands
-            .insert(primary_name.to_string(), Command::Tree(tree));
     }
 }
 
