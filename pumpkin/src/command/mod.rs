@@ -27,10 +27,6 @@ pub mod tree;
 pub mod tree_builder;
 mod tree_format;
 
-// Re-export the trait from pumpkin_util and the registration function from tree
-pub use pumpkin_util::permission::PermissionChecker;
-pub use tree::register_permission_checker;
-
 pub enum CommandSender<'a> {
     Rcon(&'a tokio::sync::Mutex<Vec<String>>),
     Console,

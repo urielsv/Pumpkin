@@ -14,6 +14,8 @@ use tokio::{
     sync::Mutex,
 };
 
+pub use plugin::api::*;
+
 pub mod block;
 pub mod command;
 pub mod data;

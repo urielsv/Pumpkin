@@ -1,9 +1,11 @@
 pub mod context;
 pub mod events;
+pub mod permissions;
 
 use async_trait::async_trait;
 pub use context::*;
 pub use events::*;
+pub use permissions::*;
 
 #[derive(Debug, Clone)]
 pub struct PluginMetadata<'s> {

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use uuid::Uuid;
 
 /// Represents the player's permission level
 ///
@@ -59,8 +58,4 @@ impl<'de> Deserialize<'de> for PermissionLvl {
             ))),
         }
     }
-}
-
-pub trait PermissionChecker: Send + Sync {
-    fn check_permission(&self, uuid: &Uuid, permission: &str) -> bool;
 }

@@ -1,7 +1,6 @@
 use super::{args::ArgumentConsumer, CommandExecutor};
 use crate::command::CommandSender;
-use pumpkin_util::permission::PermissionChecker;
-use std::{collections::VecDeque, fmt::Debug, sync::{Arc, OnceLock}};
+use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 
 /// see [`crate::commands::tree_builder::argument`]
 pub type RawArgs<'a> = Vec<&'a str>;
@@ -120,32 +119,15 @@ impl CommandTree {
         None
     }
 
-    /// check if a command requires permission and if the sender has it
-    pub fn check_permission(&self, path: &[usize], sender: &CommandSender, plugin_name: &str) -> bool {
-        // get the last node (the execute leaf)
+    /// Returns the required permission for this command path, if any
+    pub fn get_required_permission(&self, path: &[usize], plugin_name: &str) -> Option<String> {
         let last_node = &self.nodes[*path.last().unwrap()];
         
         if !last_node.requires_permission {
-            return true;
+            return None;
         }
 
-        // get the permission string
-        if let Some(permission) = self.get_permission(*path.last().unwrap(), plugin_name) {
-            match sender {
-                CommandSender::Player(player) => {
-                    // Use the registered permission checker if one exists
-                    if let Some(checker) = PERMISSION_CHECKER.get() {
-                        checker.check_permission(&player.gameprofile.id, &permission)
-                    } else {
-                        true // Default to allowing if no permission system is registered
-                    }
-                }
-                CommandSender::Console => true, 
-                _ => false,
-            }
-        } else {
-            true // no permission path found
-        }
+        self.get_permission(*path.last().unwrap(), plugin_name)
     }
 }
 
@@ -182,10 +164,4 @@ impl Iterator for TraverseAllPathsIter<'_> {
             }
         }
     }
-}
-
-static PERMISSION_CHECKER: OnceLock<Arc<dyn PermissionChecker>> = OnceLock::new();
-
-pub fn register_permission_checker(checker: Arc<dyn PermissionChecker>) {
-    let _ = PERMISSION_CHECKER.set(checker);
 }

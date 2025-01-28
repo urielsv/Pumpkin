@@ -9,12 +9,13 @@ use crate::{
     server::Server,
 };
 
-use super::{Event, EventPriority, PluginMetadata};
+use super::{Event, EventPriority, PermissionChecker, PluginMetadata};
 
 pub struct Context {
     metadata: PluginMetadata<'static>,
     pub server: Arc<Server>,
     handlers: Arc<RwLock<HandlerMap>>,
+    permission_checker: Arc<RwLock<Option<Arc<dyn PermissionChecker>>>>,
 }
 impl Context {
     #[must_use]
@@ -27,6 +28,7 @@ impl Context {
             metadata,
             server,
             handlers,
+            permission_checker: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -73,5 +75,15 @@ impl Context {
             _phantom: std::marker::PhantomData,
         };
         handlers_vec.push(Box::new(typed_handler));
+    }
+
+    pub async fn register_permission_checker(&self, checker: Arc<dyn PermissionChecker>) {
+        let mut perm_checker = self.permission_checker.write().await;
+        *perm_checker = Some(checker);
+    }
+
+    pub async fn get_permission_checker(&self) -> Option<Arc<dyn PermissionChecker>> {
+        let perm_checker = self.permission_checker.read().await;
+        perm_checker.as_ref().cloned()
     }
 }
