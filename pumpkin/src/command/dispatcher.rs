@@ -240,17 +240,18 @@ impl CommandDispatcher {
 
         // Get plugin name for permission checks
         let plugin_name = match self.plugin_names.get(key) {
-            Some(name) => name,
+            Some(name) => name.as_str(),
             None => "minecraft", // Default namespace for core commands
         };
         
-        // Always check permission level first for any command
-        if !src.has_permission_lvl(*permission) {
-            return Err(PermissionDenied);
-        }
+        // Build the command permission node
+        let command_permission = if plugin_name == "minecraft" || plugin_name == "pumpkin" {
+            format!("minecraft.command.{}", key) // Core commands use minecraft.command.X
+        } else {
+            format!("{}.command.{}", plugin_name, key) // Plugin commands use pluginname.command.X
+        };
 
-        // Check command-specific permission node
-        let command_permission = format!("{}.command.{}", plugin_name, key);
+        // Check if they have permission to use this command
         if !src.has_permission(&command_permission) {
             return Err(PermissionDenied);
         }

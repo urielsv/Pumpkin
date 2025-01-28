@@ -90,14 +90,25 @@ impl CommandSender<'_> {
             CommandSender::Console => true, // Console always has permission
             CommandSender::Rcon(_) => true, // RCON always has permission
             CommandSender::Player(player) => {
-                // For core minecraft commands, check permission level
+                // For core minecraft/pumpkin commands, require both permission level and permission node
                 if permission.starts_with("minecraft.command.") {
-                    return match permission.strip_prefix("minecraft.command.") {
-                        Some("op") => self.has_permission_lvl(PermissionLvl::Three),
-                        Some("stop") => self.has_permission_lvl(PermissionLvl::Four),
-                        Some(_) => self.has_permission_lvl(PermissionLvl::Two),
-                        None => false
+                    // First check if they have the permission node via the permission plugin
+                    let has_node = if let Some(checker) = crate::plugin::api::permissions::get_permission_checker() {
+                        checker.check_permission(&player.gameprofile.id, permission)
+                    } else {
+                        false
                     };
+
+                    // Then check if they have the required permission level
+                    let has_level = match permission.strip_prefix("minecraft.command.") {
+                        Some("op") | Some("stop") => self.has_permission_lvl(PermissionLvl::Three),
+                        Some("gamemode") | Some("tp") | Some("give") => self.has_permission_lvl(PermissionLvl::Two),
+                        Some("help") | Some("list") | Some("msg") => self.has_permission_lvl(PermissionLvl::Zero),
+                        _ => self.has_permission_lvl(PermissionLvl::Two), // Default to level 2 for unknown commands
+                    };
+
+                    // Need both the node and the level
+                    return has_node && has_level;
                 }
                 
                 // For plugin commands, use permission checker
