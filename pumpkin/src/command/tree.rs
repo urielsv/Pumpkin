@@ -1,7 +1,7 @@
 use super::{args::ArgumentConsumer, CommandExecutor};
 use crate::command::CommandSender;
+use pumpkin_util::permission::PermissionChecker;
 use std::{collections::VecDeque, fmt::Debug, sync::{Arc, OnceLock}};
-use uuid::Uuid;
 
 /// see [`crate::commands::tree_builder::argument`]
 pub type RawArgs<'a> = Vec<&'a str>;
@@ -184,13 +184,8 @@ impl Iterator for TraverseAllPathsIter<'_> {
     }
 }
 
-// global permission checker (could also be part of the Server struct)
 static PERMISSION_CHECKER: OnceLock<Arc<dyn PermissionChecker>> = OnceLock::new();
 
 pub fn register_permission_checker(checker: Arc<dyn PermissionChecker>) {
     let _ = PERMISSION_CHECKER.set(checker);
-}
-
-pub trait PermissionChecker: Send + Sync {
-    fn check_permission(&self, uuid: &Uuid, permission: &str) -> bool;
 }
