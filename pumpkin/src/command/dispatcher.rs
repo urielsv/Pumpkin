@@ -238,21 +238,19 @@ impl CommandDispatcher {
             ));
         };
 
-        // Check base permission level first
-        if !src.has_permission_lvl(*permission) {
-            return Err(PermissionDenied);
-        }
-
         // Get plugin name for permission checks
         let plugin_name = match self.plugin_names.get(key) {
             Some(name) => name,
             None => "",
         };
         
-        // Check plugin-specific permission
+        // Check plugin-specific permission first
         let plugin_permission = format!("{}.{}", plugin_name, key);
         if !src.has_permission(&plugin_permission) {
-            return Err(PermissionDenied);
+            // If they don't have plugin permission, check base permission level
+            if !src.has_permission_lvl(*permission) {
+                return Err(PermissionDenied);
+            }
         }
 
         let tree = self.get_tree(key)?;
