@@ -73,6 +73,50 @@ impl CommandTree {
             todo,
         }
     }
+
+    /// get the permission name for a node based on its name in lowercase
+    fn get_node_permission_name(&self, node_index: usize) -> Option<String> {
+        let node = &self.nodes[node_index];
+        match &node.node_type {
+            NodeType::Literal { string } => Some(string.to_lowercase()),
+            NodeType::Argument { name, .. } => Some(name.to_lowercase()),
+            _ => None
+        }
+    }
+
+    /// get the full permission string for a node by traversing its parents
+    pub fn get_full_permission(&self, node_index: usize) -> Option<String> {
+        let mut current_index = node_index;
+        let mut permission_parts = Vec::new();
+        
+        // collect permissions from the current node up to the root
+        while let Some(node) = self.nodes.get(current_index) {
+            if let Some(perm) = self.get_node_permission_name(current_index) {
+                permission_parts.push(perm);
+            }
+            
+            current_index = self.find_parent(current_index)?;
+        }
+        
+        // reverse to get root-to-leaf order
+        permission_parts.reverse();
+        
+        if permission_parts.is_empty() {
+            None
+        } else {
+            Some(permission_parts.join("."))
+        }
+    }
+
+    /// find the parent node index for a given node
+    fn find_parent(&self, node_index: usize) -> Option<usize> {
+        for (i, node) in self.nodes.iter().enumerate() {
+            if node.children.contains(&node_index) {
+                return Some(i);
+            }
+        }
+        None
+    }
 }
 
 struct TraverseAllPathsIter<'a> {
