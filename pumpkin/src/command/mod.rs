@@ -90,10 +90,21 @@ impl CommandSender<'_> {
             CommandSender::Console => true, // Console always has permission
             CommandSender::Rcon(_) => true, // RCON always has permission
             CommandSender::Player(player) => {
+                // For core minecraft commands, check permission level
+                if permission.starts_with("minecraft.command.") {
+                    return match permission.strip_prefix("minecraft.command.") {
+                        Some("op") => self.has_permission_lvl(PermissionLvl::Three),
+                        Some("stop") => self.has_permission_lvl(PermissionLvl::Four),
+                        Some(_) => self.has_permission_lvl(PermissionLvl::Two),
+                        None => false
+                    };
+                }
+                
+                // For plugin commands, use permission checker
                 if let Some(checker) = crate::plugin::api::permissions::get_permission_checker() {
                     checker.check_permission(&player.gameprofile.id, permission)
                 } else {
-                    true // No permission checker means all permissions are granted
+                    false // No permission checker means all permissions are denied by default
                 }
             }
         }

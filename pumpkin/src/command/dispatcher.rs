@@ -244,8 +244,8 @@ impl CommandDispatcher {
             None => "minecraft", // Default namespace for core commands
         };
         
-        // For core commands (minecraft namespace), require permission level
-        if plugin_name == "minecraft" && !src.has_permission_lvl(*permission) {
+        // Always check permission level first for any command
+        if !src.has_permission_lvl(*permission) {
             return Err(PermissionDenied);
         }
 
