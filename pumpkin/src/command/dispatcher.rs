@@ -241,16 +241,18 @@ impl CommandDispatcher {
         // Get plugin name for permission checks
         let plugin_name = match self.plugin_names.get(key) {
             Some(name) => name,
-            None => "",
+            None => "minecraft", // Default namespace for core commands
         };
         
-        // Check plugin-specific permission first
-        let plugin_permission = format!("{}.{}", plugin_name, key);
-        if !src.has_permission(&plugin_permission) {
-            // If they don't have plugin permission, check base permission level
-            if !src.has_permission_lvl(*permission) {
-                return Err(PermissionDenied);
-            }
+        // For core commands (minecraft namespace), require permission level
+        if plugin_name == "minecraft" && !src.has_permission_lvl(*permission) {
+            return Err(PermissionDenied);
+        }
+
+        // Check command-specific permission node
+        let command_permission = format!("{}.command.{}", plugin_name, key);
+        if !src.has_permission(&command_permission) {
+            return Err(PermissionDenied);
         }
 
         let tree = self.get_tree(key)?;
