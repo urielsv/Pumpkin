@@ -1,6 +1,7 @@
 use super::{args::ArgumentConsumer, CommandExecutor};
 use crate::command::CommandSender;
-use std::{collections::VecDeque, fmt::Debug, sync::Arc};
+use std::{collections::VecDeque, fmt::Debug, sync::{Arc, OnceLock}};
+use uuid::Uuid;
 
 /// see [`crate::commands::tree_builder::argument`]
 pub type RawArgs<'a> = Vec<&'a str>;
@@ -9,6 +10,7 @@ pub type RawArgs<'a> = Vec<&'a str>;
 pub struct Node {
     pub(crate) children: Vec<usize>,
     pub(crate) node_type: NodeType,
+    pub(crate) requires_permission: bool,
 }
 
 #[derive(Clone)]
@@ -84,13 +86,13 @@ impl CommandTree {
         }
     }
 
-    /// get the full permission string for a node by traversing its parents
-    pub fn get_full_permission(&self, node_index: usize) -> Option<String> {
+    /// get the permission string for a node including plugin name (e.g. pluginname.command.subcommand)
+    pub fn get_permission(&self, node_index: usize, plugin_name: &str) -> Option<String> {
         let mut current_index = node_index;
-        let mut permission_parts = Vec::new();
+        let mut permission_parts = vec![plugin_name.to_string()];
         
         // collect permissions from the current node up to the root
-        while let Some(node) = self.nodes.get(current_index) {
+        while let Some(_) = self.nodes.get(current_index) {
             if let Some(perm) = self.get_node_permission_name(current_index) {
                 permission_parts.push(perm);
             }
@@ -98,10 +100,10 @@ impl CommandTree {
             current_index = self.find_parent(current_index)?;
         }
         
-        // reverse to get root-to-leaf order
-        permission_parts.reverse();
+        // reverse to get root-to-leaf order (except plugin_name which stays first)
+        permission_parts[1..].reverse();
         
-        if permission_parts.is_empty() {
+        if permission_parts.len() <= 1 {
             None
         } else {
             Some(permission_parts.join("."))
@@ -116,6 +118,34 @@ impl CommandTree {
             }
         }
         None
+    }
+
+    /// check if a command requires permission and if the sender has it
+    pub fn check_permission(&self, path: &[usize], sender: &CommandSender, plugin_name: &str) -> bool {
+        // get the last node (the execute leaf)
+        let last_node = &self.nodes[*path.last().unwrap()];
+        
+        if !last_node.requires_permission {
+            return true;
+        }
+
+        // get the permission string
+        if let Some(permission) = self.get_permission(*path.last().unwrap(), plugin_name) {
+            match sender {
+                CommandSender::Player(player) => {
+                    // Use the registered permission checker if one exists
+                    if let Some(checker) = PERMISSION_CHECKER.get() {
+                        checker.check_permission(&player.gameprofile.id, &permission)
+                    } else {
+                        true // Default to allowing if no permission system is registered
+                    }
+                }
+                CommandSender::Console => true, 
+                _ => false,
+            }
+        } else {
+            true // no permission path found
+        }
     }
 }
 
@@ -152,4 +182,15 @@ impl Iterator for TraverseAllPathsIter<'_> {
             }
         }
     }
+}
+
+// global permission checker (could also be part of the Server struct)
+static PERMISSION_CHECKER: OnceLock<Arc<dyn PermissionChecker>> = OnceLock::new();
+
+pub fn register_permission_checker(checker: Arc<dyn PermissionChecker>) {
+    let _ = PERMISSION_CHECKER.set(checker);
+}
+
+pub trait PermissionChecker: Send + Sync {
+    fn check_permission(&self, uuid: &Uuid, permission: &str) -> bool;
 }

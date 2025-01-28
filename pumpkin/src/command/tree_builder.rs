@@ -42,6 +42,7 @@ impl CommandTree {
     #[must_use]
     pub fn execute(mut self, executor: impl CommandExecutor + 'static + Send) -> Self {
         let node = Node {
+            requires_permission: false,
             node_type: NodeType::ExecuteLeaf {
                 executor: Arc::new(executor),
             },
@@ -66,6 +67,7 @@ struct LeafNodeBuilder {
 impl NodeBuilder for LeafNodeBuilder {
     fn build(self, _tree: &mut CommandTree) -> Node {
         Node {
+            requires_permission: false,
             children: Vec::new(),
             node_type: self.node_type,
         }
@@ -95,6 +97,7 @@ impl NodeBuilder for NonLeafNodeBuilder {
         }
 
         Node {
+            requires_permission: false,
             children: child_indices,
             node_type: self.node_type,
         }
