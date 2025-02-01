@@ -232,34 +232,26 @@ impl CommandDispatcher {
             return Err(GeneralCommandIssue(format!("Command {key} does not exist")));
         }
 
-        let Some(permission) = self.permissions.get(key) else {
-            return Err(GeneralCommandIssue(
-                "Permission for Command not found".to_string(),
-            ));
-        };
-
-        // Get plugin name for permission checks
         let plugin_name = match self.plugin_names.get(key) {
             Some(name) => name.as_str(),
             None => "minecraft", // Default namespace for core commands
         };
-        
-        // Build the command permission node
-        let command_permission = if plugin_name == "minecraft" || plugin_name == "pumpkin" {
-            format!("minecraft.command.{}", key) // Core commands use minecraft.command.X
-        } else {
-            format!("{}.command.{}", plugin_name, key) // Plugin commands use pluginname.command.X
-        };
-
-        // Check if they have permission to use this command
-        if !src.has_permission(&command_permission) {
-            return Err(PermissionDenied);
-        }
 
         let tree = self.get_tree(key)?;
 
         // try paths until fitting path is found
         for path in tree.iter_paths() {
+            // Debug log the permission check for this path
+            if let Some(permission) = tree.get_required_permission(&path, plugin_name) {
+                log::debug!(
+                    "[Permission Debug] Command: '{}', Path Permission: '{}', Plugin: '{}', Has Permission: {}",
+                    cmd,
+                    permission,
+                    plugin_name,
+                    src.has_permission(&permission)
+                );
+            }
+
             if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
                 return Ok(());
             }
