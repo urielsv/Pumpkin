@@ -142,8 +142,8 @@ fn init_logger() {
             logger = logger.without_timestamps();
         }
 
-        // default
-        logger = logger.with_level(LevelFilter::Info);
+        // TEMP: Set debug level for permission debugging
+        logger = logger.with_level(LevelFilter::Debug);
 
         logger = logger.with_colors(ADVANCED_CONFIG.logging.color);
         logger = logger.with_threads(ADVANCED_CONFIG.logging.threads);
