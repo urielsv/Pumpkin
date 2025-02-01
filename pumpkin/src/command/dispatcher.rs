@@ -234,7 +234,8 @@ impl CommandDispatcher {
             src.has_permission(&command_permission)
         );
 
-        if !src.has_permission_lvl(*required_level) || !src.has_permission(&command_permission) {
+        // Allow if they have either the required level OR the specific permission
+        if !src.has_permission_lvl(*required_level) && !src.has_permission(&command_permission) {
             return Err(PermissionDenied);
         }
 
