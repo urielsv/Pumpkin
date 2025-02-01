@@ -237,19 +237,40 @@ impl CommandDispatcher {
             None => "minecraft", // Default namespace for core commands
         };
 
+        // Debug log for permission checks
+        if plugin_name == "minecraft" || plugin_name == "pumpkin" {
+            // For minecraft/pumpkin commands, check PermissionLvl
+            if let Some(required_level) = self.permissions.get(key) {
+                log::debug!(
+                    "[Permission Debug] Command: '{}', Type: Core, Required Level: {:?}, Has Level: {}",
+                    cmd,
+                    required_level,
+                    src.has_permission_lvl(*required_level)
+                );
+                if !src.has_permission_lvl(*required_level) {
+                    return Err(PermissionDenied);
+                }
+            }
+        }
+
         let tree = self.get_tree(key)?;
 
         // try paths until fitting path is found
         for path in tree.iter_paths() {
-            // Debug log the permission check for this path
-            if let Some(permission) = tree.get_required_permission(&path, plugin_name) {
-                log::debug!(
-                    "[Permission Debug] Command: '{}', Path Permission: '{}', Plugin: '{}', Has Permission: {}",
-                    cmd,
-                    permission,
-                    plugin_name,
-                    src.has_permission(&permission)
-                );
+            // For plugin commands, check custom permissions
+            if plugin_name != "minecraft" && plugin_name != "pumpkin" {
+                if let Some(permission) = tree.get_required_permission(&path, plugin_name) {
+                    log::debug!(
+                        "[Permission Debug] Command: '{}', Type: Plugin, Permission: '{}', Plugin: '{}', Has Permission: {}",
+                        cmd,
+                        permission,
+                        plugin_name,
+                        src.has_permission(&permission)
+                    );
+                    if !src.has_permission(&permission) {
+                        return Err(PermissionDenied);
+                    }
+                }
             }
 
             if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
