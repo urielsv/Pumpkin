@@ -214,6 +214,60 @@ impl CommandDispatcher {
         suggestions
     }
 
+    async fn check_core_command_permissions<'a>(
+        &'a self,
+        src: &CommandSender<'a>,
+        cmd: &str,
+        key: &str
+    ) -> Result<(), CommandError> {
+        let Some(required_level) = self.permissions.get(key) else {
+            return Ok(());
+        };
+
+        let command_permission = format!("minecraft.command.{}", key);
+        log::debug!(
+            "[Permission Debug] Command: '{}', Type: Core, Permission: '{}', Required Level: {:?}, Has Level: {}, Has Permission: {}",
+            cmd,
+            command_permission,
+            required_level,
+            src.has_permission_lvl(*required_level),
+            src.has_permission(&command_permission)
+        );
+
+        if !src.has_permission_lvl(*required_level) || !src.has_permission(&command_permission) {
+            return Err(PermissionDenied);
+        }
+
+        Ok(())
+    }
+
+    async fn check_plugin_command_permissions<'a>(
+        &'a self,
+        src: &CommandSender<'a>,
+        cmd: &str,
+        plugin_name: &str,
+        tree: &CommandTree,
+        path: &[usize],
+    ) -> Result<(), CommandError> {
+        let Some(permission) = tree.get_required_permission(path, plugin_name) else {
+            return Ok(());
+        };
+
+        log::debug!(
+            "[Permission Debug] Command: '{}', Type: Plugin, Permission: '{}', Plugin: '{}', Has Permission: {}",
+            cmd,
+            permission,
+            plugin_name,
+            src.has_permission(&permission)
+        );
+
+        if !src.has_permission(&permission) {
+            return Err(PermissionDenied);
+        }
+
+        Ok(())
+    }
+
     /// Execute a command using its corresponding [`CommandTree`].
     pub(crate) async fn dispatch<'a>(
         &'a self,
@@ -221,7 +275,6 @@ impl CommandDispatcher {
         server: &'a Server,
         cmd: &'a str,
     ) -> Result<(), CommandError> {
-        // Other languages dont use the ascii whitespace
         let mut parts = cmd.split_whitespace();
         let key = parts
             .next()
@@ -237,46 +290,34 @@ impl CommandDispatcher {
             None => "minecraft", // Default namespace for core commands
         };
 
-        // Debug log for permission checks
-        if plugin_name == "minecraft" || plugin_name == "pumpkin" {
-            // For minecraft/pumpkin commands, check PermissionLvl
-            if let Some(required_level) = self.permissions.get(key) {
-                log::debug!(
-                    "[Permission Debug] Command: '{}', Type: Core, Required Level: {:?}, Has Level: {}",
-                    cmd,
-                    required_level,
-                    src.has_permission_lvl(*required_level)
-                );
-                if !src.has_permission_lvl(*required_level) {
-                    return Err(PermissionDenied);
-                }
-            }
-        }
-
         let tree = self.get_tree(key)?;
 
-        // try paths until fitting path is found
-        for path in tree.iter_paths() {
-            // For plugin commands, check custom permissions
-            if plugin_name != "minecraft" && plugin_name != "pumpkin" {
-                if let Some(permission) = tree.get_required_permission(&path, plugin_name) {
-                    log::debug!(
-                        "[Permission Debug] Command: '{}', Type: Plugin, Permission: '{}', Plugin: '{}', Has Permission: {}",
-                        cmd,
-                        permission,
-                        plugin_name,
-                        src.has_permission(&permission)
-                    );
-                    if !src.has_permission(&permission) {
-                        return Err(PermissionDenied);
+        // Check permissions based on command type
+        match plugin_name {
+            "minecraft" | "pumpkin" => {
+                self.check_core_command_permissions(src, cmd, key).await?;
+            }
+            plugin_name => {
+                // Plugin commands check permissions per path
+                for path in tree.iter_paths() {
+                    self.check_plugin_command_permissions(src, cmd, plugin_name, tree, &path).await?;
+                    
+                    if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
+                        return Ok(());
                     }
                 }
             }
+        }
 
-            if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
-                return Ok(());
+        // If it's a core command or we haven't returned yet, try paths
+        if plugin_name == "minecraft" || plugin_name == "pumpkin" {
+            for path in tree.iter_paths() {
+                if Self::try_is_fitting_path(src, server, &path, tree, &mut raw_args.clone(), plugin_name).await? {
+                    return Ok(());
+                }
             }
         }
+
         Err(GeneralCommandIssue(format!(
             "Invalid Syntax. Usage: {tree}"
         )))
